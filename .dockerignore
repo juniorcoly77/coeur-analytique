@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.git/
+.gitignore
+*.ipynb
+train_model.py
+heart_disease_cleveland_ML.csv
+api/
+vercel.json
+.vercelignore
+README.md
+.venv/
+venv/
