@@ -1,69 +1,119 @@
-// Coeur Analytique — logique du formulaire et affichage du résultat
-// Appelle POST /api/predict (servi soit par FastAPI/Docker, soit par la fonction Vercel).
+// Coeur Analytique — formulaire, appel à /api/predict, affichage du résultat
 
 const form = document.getElementById("patient-form");
 const submitBtn = document.getElementById("submit-btn");
 const errorMsg = document.getElementById("error-msg");
-
 const placeholder = document.getElementById("placeholder");
 const loading = document.getElementById("loading");
 const result = document.getElementById("result");
-
-const verdictBadge = document.getElementById("verdict-badge");
-const probaValue = document.getElementById("proba-value");
-const flagsList = document.getElementById("flags-list");
 const pulseResult = document.getElementById("pulse-result");
 
-// Champs à convertir en nombre avant l'envoi (le reste part en chaîne de caractères)
 const CHAMPS_NUMERIQUES = [
-  "age", "sex", "cp", "trestbps", "chol", "fbs", "restecg",
-  "thalach", "exang", "oldpeak", "slope", "ca", "thal",
+  "age", "poids", "taille", "freq_cardiaque", "ta_systolique",
+  "ta_diastolique", "ldl", "glycemie", "acide_urique",
 ];
 
+const NIVEAUX = {
+  faible: { texte: "Risque faible", classe: "sain", pouls: "#9FE3C7" },
+  intermediaire: { texte: "Risque intermédiaire", classe: "moyen", pouls: "#F1D38A" },
+  eleve: { texte: "Risque élevé", classe: "malade", pouls: "#F2A68E" },
+};
+
 function afficherEtat(etat) {
-  // etat : 'attente' | 'chargement' | 'resultat'
   placeholder.hidden = etat !== "attente";
   loading.hidden = etat !== "chargement";
   result.hidden = etat !== "resultat";
 }
 
+// IMC recalculé en direct à partir du poids et de la taille
+const champ = (nom) => form.querySelector(`[name="${nom}"]`);
+
+function majIMC() {
+  const poids = parseFloat(champ("poids").value);
+  const taille = parseFloat(champ("taille").value);
+  const el = document.getElementById("imc-value");
+  el.textContent = poids > 0 && taille > 0
+    ? (poids / Math.pow(taille / 100, 2)).toFixed(1).replace(".", ",")
+    : "—";
+}
+champ("poids").addEventListener("input", majIMC);
+champ("taille").addEventListener("input", majIMC);
+majIMC();
+
 function collecterDonnees() {
   const data = new FormData(form);
   const patient = {};
-  for (const champ of CHAMPS_NUMERIQUES) {
-    patient[champ] = Number(data.get(champ));
+  for (const [cle, valeur] of data.entries()) {
+    patient[cle] = CHAMPS_NUMERIQUES.includes(cle) ? Number(valeur) : valeur;
   }
   return patient;
 }
 
-function afficherResultat(reponse) {
-  const proba = reponse.probabilite; // 0..1
-  const estMalade = reponse.prediction === 1;
+// Le modèle est très tranché : on n'affiche jamais « 0 % » ni « 100 % »
+function formaterProba(p) {
+  if (p > 0.99) return "> 99 %";
+  if (p < 0.01) return "< 1 %";
+  return Math.round(p * 100) + " %";
+}
 
-  verdictBadge.textContent = estMalade ? "Risque élevé détecté" : "Profil favorable";
-  verdictBadge.className = "verdict-badge " + (estMalade ? "malade" : "sain");
-
-  probaValue.textContent = Math.round(proba * 100) + "%";
-
-  flagsList.innerHTML = "";
-  if (reponse.indicateurs.length === 0) {
-    flagsList.classList.add("empty");
+function remplirListe(ul, items, vide) {
+  ul.innerHTML = "";
+  if (items.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "Aucun facteur de risque clinique usuel détecté.";
-    flagsList.appendChild(li);
-  } else {
-    flagsList.classList.remove("empty");
-    for (const indicateur of reponse.indicateurs) {
-      const li = document.createElement("li");
-      li.textContent = indicateur;
-      flagsList.appendChild(li);
-    }
+    li.className = "empty";
+    li.textContent = vide;
+    ul.appendChild(li);
+    return;
+  }
+  for (const item of items) {
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    label.textContent = item.libelle;
+    const track = document.createElement("span");
+    track.className = "track";
+    const fill = document.createElement("span");
+    fill.className = "fill";
+    fill.style.width = Math.max(6, Math.round(item.poids * 100)) + "%";
+    track.appendChild(fill);
+    li.append(label, track);
+    ul.appendChild(li);
+  }
+}
+
+function afficherResultat(r) {
+  const niveau = NIVEAUX[r.niveau];
+  const badge = document.getElementById("verdict-badge");
+  badge.textContent = niveau.texte;
+  badge.className = "verdict-badge " + niveau.classe;
+
+  document.getElementById("proba-value").textContent = formaterProba(r.probabilite);
+
+  const warn = document.getElementById("range-warning");
+  warn.hidden = r.hors_plage.length === 0;
+  warn.textContent = r.hors_plage.join(" ");
+
+  remplirListe(document.querySelector("#factors-up .bars"), r.facteurs.risque,
+    "Aucun facteur ne dépasse le patient moyen.");
+  remplirListe(document.querySelector("#factors-down .bars"), r.facteurs.protecteur,
+    "Aucun facteur protecteur marqué.");
+
+  const flags = document.getElementById("flags-list");
+  flags.innerHTML = "";
+  flags.classList.toggle("empty", r.indicateurs.length === 0);
+  const liste = r.indicateurs.length ? r.indicateurs : ["Aucun facteur de risque clinique usuel détecté."];
+  for (const t of liste) {
+    const li = document.createElement("li");
+    li.textContent = t;
+    flags.appendChild(li);
   }
 
-  // Un seul mouvement orchestré : le tracé du pouls se dessine une fois le résultat prêt
-  pulseResult.style.stroke = estMalade ? "#F2A68E" : "#9FE3C7";
+  const m = r.modele;
+  document.getElementById("model-info").textContent =
+    `${m.nom} · ROC-AUC ${String(m.roc_auc).replace(".", ",")} et exactitude ${Math.round(m.accuracy * 100)} % sur des patients de test (base de ${m.n_total} patients).`;
+
+  // Un seul mouvement orchestré : le tracé du pouls se dessine quand le résultat est prêt
+  pulseResult.style.stroke = niveau.pouls;
   pulseResult.classList.remove("draw");
-  // force reflow pour pouvoir rejouer l'animation à chaque nouvelle analyse
   void pulseResult.getBoundingClientRect();
   pulseResult.classList.add("draw");
 
@@ -78,19 +128,13 @@ form.addEventListener("submit", async (event) => {
   afficherEtat("chargement");
 
   try {
-    const patient = collecterDonnees();
     const reponse = await fetch("/api/predict", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patient),
+      body: JSON.stringify(collecterDonnees()),
     });
-
-    if (!reponse.ok) {
-      const detail = await reponse.json().catch(() => ({}));
-      throw new Error(detail.detail || "Le serveur n'a pas pu traiter cette demande.");
-    }
-
-    const donnees = await reponse.json();
+    const donnees = await reponse.json().catch(() => ({}));
+    if (!reponse.ok) throw new Error(donnees.detail || "Le serveur n'a pas pu traiter cette demande.");
     afficherResultat(donnees);
   } catch (err) {
     afficherEtat("attente");

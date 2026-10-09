@@ -1,2 +1,7 @@
--r requirements.txt
+# Dépendances pour ré-entraîner le modèle et exécuter le notebook (pas nécessaires en production)
+-r api/requirements.txt
 imbalanced-learn==0.14.2
+xgboost
+matplotlib
+seaborn
+jupyter

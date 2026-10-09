@@ -1,0 +1,22 @@
+{
+  "modele": "Régression logistique",
+  "n_total": 1000,
+  "n_test": 200,
+  "accuracy": 0.96,
+  "precision": 0.9851,
+  "rappel": 0.9565,
+  "f1": 0.9706,
+  "roc_auc": 0.9891,
+  "pr_auc": 0.9949,
+  "brier": 0.0388,
+  "matrice": {
+    "vrais_negatifs": 60,
+    "faux_positifs": 2,
+    "faux_negatifs": 6,
+    "vrais_positifs": 132
+  },
+  "hyperparametres": {
+    "C": 3,
+    "penalisation": "L2"
+  }
+}

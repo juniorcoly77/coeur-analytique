@@ -187,6 +187,12 @@ button:focus-visible {
 .monitor {
   position: sticky;
   top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+@media (max-width: 860px) {
+  .monitor { position: static; max-height: none; overflow: visible; }
 }
 
 .monitor-bezel {
@@ -253,6 +259,11 @@ button:focus-visible {
 .verdict-badge.sain {
   background: rgba(47, 111, 100, 0.12);
   color: var(--teal-dark);
+}
+
+.verdict-badge.moyen {
+  background: rgba(154, 106, 18, 0.14);
+  color: #7A5410;
 }
 
 .verdict-badge.malade {
@@ -334,4 +345,60 @@ button:focus-visible {
     animation: none;
     stroke-dashoffset: 0;
   }
+}
+
+/* ---------- champs dérivés, avertissements, facteurs ---------- */
+
+.derived {
+  margin: 14px 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+.derived strong { font-family: 'IBM Plex Mono', monospace; color: var(--ink); font-weight: 500; }
+
+.mono { font-family: 'IBM Plex Mono', monospace; color: var(--ink-muted); }
+.small { font-size: 0.8rem; margin: 0 0 12px; }
+
+.warning {
+  font-size: 0.85rem;
+  color: #7A5410;
+  background: rgba(154, 106, 18, 0.1);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin: 0 0 20px;
+}
+
+.factors h2, .indicators h2 {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin: 0 0 4px;
+}
+.indicators h2 { margin-bottom: 12px; }
+.indicators { margin-top: 22px; }
+
+.factor-group h3 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 14px 0 8px;
+}
+
+.bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.bars li { display: grid; gap: 4px; font-size: 0.85rem; }
+.bars li.empty { color: var(--ink-muted); }
+.track { display: block; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.fill { display: block; height: 100%; border-radius: 3px; }
+#factors-up .fill { background: var(--brick); }
+#factors-down .fill { background: var(--teal); }
+
+.flags-list { border-top: 0; padding-top: 0; }
+
+.model-info {
+  margin: 22px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.74rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
 }

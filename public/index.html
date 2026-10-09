@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Coeur Analytique — Aide au diagnostic cardiovasculaire</title>
+<title>Coeur Analytique — Estimation du risque de crise cardiaque</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><text y=%2224%22 font-size=%2224%22>🫀</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,18 +15,17 @@
 <header class="site-header">
   <div class="wrap header-inner">
     <span class="wordmark">Coeur Analytique</span>
-    <span class="tagline">Outil d'aide à la décision — Random Forest entraîné sur le dataset Cleveland</span>
+    <span class="tagline">Aide à l'évaluation du risque de crise cardiaque — modèle entraîné sur 1 000 patients NHANES</span>
   </div>
 </header>
 
 <main class="wrap layout">
 
-  <!-- ====================== FORMULAIRE ====================== -->
   <section class="intake" aria-labelledby="intake-title">
     <h1 id="intake-title">Renseigner le dossier du patient</h1>
     <p class="lede">
-      Treize variables cliniques suffisent au modèle pour estimer une probabilité
-      de maladie cardiaque. Aucune donnée n'est conservée après l'analyse.
+      Seize informations cliniques, biologiques et de mode de vie suffisent pour estimer
+      une probabilité de risque. Rien n'est conservé après l'analyse.
     </p>
 
     <form id="patient-form" novalidate>
@@ -34,101 +33,63 @@
       <fieldset>
         <legend>Profil patient</legend>
         <div class="field-grid">
-          <label class="field">
-            <span>Âge (années)</span>
-            <input type="number" name="age" min="1" max="120" value="54" required>
-          </label>
-          <label class="field">
-            <span>Sexe</span>
-            <select name="sex" required>
-              <option value="1">Homme</option>
-              <option value="0">Femme</option>
-            </select>
-          </label>
+          <label class="field"><span>Âge (années)</span>
+            <input type="number" name="age" min="18" max="110" value="52" required></label>
+          <label class="field"><span>Sexe</span>
+            <select name="sexe"><option>Homme</option><option>Femme</option></select></label>
+          <label class="field"><span>Poids (kg)</span>
+            <input type="number" name="poids" min="25" max="300" step="0.1" value="78" required></label>
+          <label class="field"><span>Taille (cm)</span>
+            <input type="number" name="taille" min="100" max="230" step="0.1" value="172" required></label>
+        </div>
+        <p class="derived">IMC calculé : <strong id="imc-value">26,4</strong> kg/m²</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Symptômes et ECG</legend>
+        <div class="field-grid">
+          <label class="field"><span>Douleur thoracique</span>
+            <select name="type_douleur">
+              <option>Typique angineuse</option><option>Atypique</option>
+              <option selected>Non angineuse</option><option>Asymptomatique</option>
+            </select></label>
+          <label class="field"><span>Angine déclenchée par l'effort</span>
+            <select name="angine_effort"><option selected>Non</option><option>Oui</option></select></label>
+          <label class="field"><span>ECG au repos</span>
+            <select name="ecg_repos">
+              <option selected>Normal</option><option>Anomalie ST-T</option>
+              <option>Hypertrophie ventriculaire</option>
+            </select></label>
+          <label class="field"><span>Sous-décalage du segment ST</span>
+            <select name="sous_decalage_st"><option selected>Non</option><option>Oui</option></select></label>
+          <label class="field"><span>Fréquence cardiaque (bpm)</span>
+            <input type="number" name="freq_cardiaque" min="30" max="220" value="71" required></label>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Examens cliniques</legend>
+        <legend>Tension et biologie</legend>
         <div class="field-grid">
-          <label class="field">
-            <span>Type de douleur thoracique</span>
-            <select name="cp" required>
-              <option value="1">Angine typique</option>
-              <option value="2">Angine atypique</option>
-              <option value="3">Douleur non angineuse</option>
-              <option value="4" selected>Asymptomatique</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Pression artérielle au repos (mmHg)</span>
-            <input type="number" name="trestbps" min="60" max="250" value="130" required>
-          </label>
-          <label class="field">
-            <span>Cholestérol sérique (mg/dl)</span>
-            <input type="number" name="chol" min="80" max="700" value="246" required>
-          </label>
-          <label class="field">
-            <span>Glycémie à jeun &gt; 120 mg/dl</span>
-            <select name="fbs" required>
-              <option value="0" selected>Non</option>
-              <option value="1">Oui</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>ECG au repos</span>
-            <select name="restecg" required>
-              <option value="0" selected>Normal</option>
-              <option value="1">Anomalie de l'onde ST-T</option>
-              <option value="2">Hypertrophie ventriculaire gauche</option>
-            </select>
-          </label>
+          <label class="field"><span>Pression systolique (mmHg)</span>
+            <input type="number" name="ta_systolique" min="70" max="260" value="128" required></label>
+          <label class="field"><span>Pression diastolique (mmHg)</span>
+            <input type="number" name="ta_diastolique" min="40" max="160" value="80" required></label>
+          <label class="field"><span>LDL-cholestérol (mg/dl)</span>
+            <input type="number" name="ldl" min="20" max="400" step="0.1" value="125" required></label>
+          <label class="field"><span>Glycémie (mg/dl)</span>
+            <input type="number" name="glycemie" min="30" max="600" step="0.1" value="98" required></label>
+          <label class="field"><span>Acide urique (mg/dl)</span>
+            <input type="number" name="acide_urique" min="1" max="15" step="0.1" value="5.8" required></label>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Effort &amp; ECG d'effort</legend>
+        <legend>Mode de vie</legend>
         <div class="field-grid">
-          <label class="field">
-            <span>Fréquence cardiaque max. atteinte</span>
-            <input type="number" name="thalach" min="60" max="230" value="150" required>
-          </label>
-          <label class="field">
-            <span>Angine déclenchée par l'effort</span>
-            <select name="exang" required>
-              <option value="0" selected>Non</option>
-              <option value="1">Oui</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Sous-décalage ST à l'effort</span>
-            <input type="number" name="oldpeak" min="0" max="10" step="0.1" value="1.0" required>
-          </label>
-          <label class="field">
-            <span>Pente du segment ST à l'effort</span>
-            <select name="slope" required>
-              <option value="1">Ascendante</option>
-              <option value="2" selected>Plate</option>
-              <option value="3">Descendante</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Vaisseaux colorés (fluoroscopie)</span>
-            <select name="ca" required>
-              <option value="0" selected>0</option>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Thalassémie</span>
-            <select name="thal" required>
-              <option value="3" selected>Normale</option>
-              <option value="6">Défaut fixe</option>
-              <option value="7">Défaut réversible</option>
-            </select>
-          </label>
+          <label class="field"><span>Tabagisme</span>
+            <select name="tabagisme"><option selected>Non</option><option>Oui</option></select></label>
+          <label class="field"><span>Activité physique</span>
+            <select name="sedentarite"><option selected>Active</option><option>Sédentaire</option></select></label>
         </div>
       </fieldset>
 
@@ -137,53 +98,56 @@
     </form>
   </section>
 
-  <!-- ====================== MONITEUR / RÉSULTAT ====================== -->
   <aside class="monitor" aria-live="polite">
     <div class="monitor-bezel">
-
-      <svg class="pulse" id="pulse-svg" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
-        <path id="pulse-idle"
-          d="M0,50 L140,50 L155,50 L165,30 L175,70 L185,50 L400,50"
-          fill="none" stroke-width="2" />
-        <path id="pulse-result"
-          d="M0,50 L140,50 L155,50 L165,30 L175,70 L185,50 L400,50"
-          fill="none" stroke-width="2.5" />
+      <svg class="pulse" viewBox="0 0 400 100" preserveAspectRatio="none" aria-hidden="true">
+        <path id="pulse-idle" d="M0,50 L140,50 L155,50 L165,30 L175,70 L185,50 L400,50" fill="none" stroke-width="2"/>
+        <path id="pulse-result" d="M0,50 L140,50 L155,50 L165,30 L175,70 L185,50 L400,50" fill="none" stroke-width="2.5"/>
       </svg>
 
       <div class="monitor-body">
-        <div class="monitor-placeholder" id="placeholder">
+        <div id="placeholder">
           <p>En attente d'une analyse.</p>
           <p class="muted">Remplissez le dossier puis lancez l'analyse pour afficher le résultat ici.</p>
         </div>
 
-        <div class="monitor-result" id="result" hidden>
+        <div id="loading" hidden><p class="mono">Analyse en cours…</p></div>
+
+        <div id="result" hidden>
           <span class="verdict-badge" id="verdict-badge">—</span>
           <div class="readout">
-            <span class="readout-value" id="proba-value">0%</span>
-            <span class="readout-label">probabilité de maladie cardiaque estimée</span>
+            <span class="readout-value" id="proba-value">—</span>
+            <span class="readout-label">probabilité estimée de risque de crise cardiaque</span>
           </div>
 
-          <ul class="flags-list" id="flags-list"></ul>
-        </div>
+          <p class="warning" id="range-warning" hidden></p>
 
-        <div class="monitor-loading" id="loading" hidden>
-          <p>Analyse en cours…</p>
+          <div class="factors" id="factors">
+            <h2>Ce qui pèse le plus dans ce calcul</h2>
+            <p class="muted small">Par rapport au patient moyen du jeu d'entraînement.</p>
+            <div class="factor-group" id="factors-up"><h3>Augmente le risque</h3><ul class="bars"></ul></div>
+            <div class="factor-group" id="factors-down"><h3>Réduit le risque</h3><ul class="bars"></ul></div>
+          </div>
+
+          <div class="indicators" id="indicators">
+            <h2>Facteurs de risque repérés</h2>
+            <ul class="flags-list" id="flags-list"></ul>
+          </div>
+
+          <p class="model-info" id="model-info"></p>
         </div>
       </div>
     </div>
 
     <p class="disclaimer">
-      Outil pédagogique (Master 1 Systèmes &amp; Réseaux, UADB). Ne remplace en aucun
-      cas un avis médical professionnel.
+      Outil pédagogique (Master 1 Systèmes &amp; Réseaux, UADB). Estimation statistique issue
+      d'un jeu de données de démonstration : elle ne remplace pas un avis médical.
     </p>
   </aside>
-
 </main>
 
 <footer class="site-footer">
-  <div class="wrap">
-    <span>Modèle Random Forest · Dataset Heart Disease (Cleveland) · Pipeline scikit-learn</span>
-  </div>
+  <div class="wrap"><span>Régression logistique · Dataset NHANES · scikit-learn</span></div>
 </footer>
 
 <script src="script.js"></script>

@@ -4,8 +4,5 @@
     "api/predict.py": {
       "includeFiles": "heart_model/**"
     }
-  },
-  "rewrites": [
-    { "source": "/api/predict", "destination": "/api/predict.py" }
-  ]
+  }
 }

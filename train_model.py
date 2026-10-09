@@ -1,77 +1,81 @@
 """
-Entraîne le pipeline complet (prétraitement + PCA + SMOTE + Random Forest) sur le
-dataset brut, l'évalue sur un jeu de test indépendant, puis sauvegarde l'artefact
-`heart_model/model_pipeline.joblib` utilisé par l'API (Docker) et par la fonction
-serverless (Vercel).
+Entraîne le modèle final (régression logistique) sur le dataset NHANES, l'évalue sur un
+jeu de test indépendant, puis sauvegarde les artefacts utilisés par la fonction Vercel :
+    heart_model/model_pipeline.joblib   pipeline complet (prétraitement + modèle)
+    heart_model/explication.json        noms des variables + moyennes (explications locales)
+    heart_model/metrics.json            performances mesurées sur le jeu de test
 
-Usage : python train_model.py
+Usage : python train_model.py      (nécessite scikit-learn, pandas, numpy, joblib)
 """
-
+import json
 import joblib
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.pipeline import Pipeline as SkPipeline
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score, roc_auc_score,
-    classification_report,
-)
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (accuracy_score, average_precision_score, brier_score_loss,
+                             classification_report, confusion_matrix, f1_score,
+                             precision_score, recall_score, roc_auc_score)
+from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, train_test_split
+from sklearn.pipeline import Pipeline
 
-from heart_model.pipeline import COLONNES_BRUTES, RANDOM_STATE
-from heart_model.train_pipeline import build_pipeline
+from heart_model.pipeline import RANDOM_STATE, build_preprocessing_steps, charger_donnees
 
-CHEMIN_DONNEES = "heart_disease_cleveland_ML.csv"
-CHEMIN_MODELE = "heart_model/model_pipeline.joblib"
+CHEMIN_DONNEES = "data/nhanes_risque_cardiaque.csv"
+
+
+def construire(C=1.0):
+    return Pipeline([
+        ("preparation_transformation", Pipeline(build_preprocessing_steps(use_pca=False))),
+        ("modele", LogisticRegression(C=C, max_iter=2000, random_state=RANDOM_STATE)),
+    ])
 
 
 def main():
-    # --- Chargement des données brutes ---
-    df = pd.read_csv(CHEMIN_DONNEES)
-    df.columns = [c.strip() for c in df.columns]
+    X, y = charger_donnees(CHEMIN_DONNEES)
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y)
 
-    X = df[COLONNES_BRUTES]
-    y = df["num"]
+    # Recherche de l'hyperparamètre C (force de la régularisation L2), optimisée sur le ROC-AUC
+    grille = {"modele__C": [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30]}
+    cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=RANDOM_STATE)
+    gs = GridSearchCV(construire(), grille, scoring="roc_auc", cv=cv, n_jobs=-1)
+    gs.fit(X_tr, y_tr)
+    print("Meilleurs paramètres :", gs.best_params_, "| ROC-AUC CV :", round(gs.best_score_, 4))
 
-    # --- Séparation train/test stratifiée (le test ne sert qu'à l'évaluation finale) ---
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=RANDOM_STATE, stratify=y
-    )
+    # Évaluation sur le jeu de test (jamais vu pendant la recherche)
+    y_pred = gs.predict(X_te)
+    y_proba = gs.predict_proba(X_te)[:, 1]
+    tn, fp, fn, tp = confusion_matrix(y_te, y_pred).ravel()
+    metrics = {
+        "modele": "Régression logistique", "n_total": int(len(X)), "n_test": int(len(X_te)),
+        "accuracy": accuracy_score(y_te, y_pred), "precision": precision_score(y_te, y_pred),
+        "rappel": recall_score(y_te, y_pred), "f1": f1_score(y_te, y_pred),
+        "roc_auc": roc_auc_score(y_te, y_proba), "pr_auc": average_precision_score(y_te, y_proba),
+        "brier": brier_score_loss(y_te, y_proba),
+        "matrice": {"vrais_negatifs": int(tn), "faux_positifs": int(fp),
+                    "faux_negatifs": int(fn), "vrais_positifs": int(tp)},
+        "hyperparametres": {"C": gs.best_params_["modele__C"], "penalisation": "L2"},
+    }
+    metrics = {k: (round(v, 4) if isinstance(v, float) else v) for k, v in metrics.items()}
+    print(classification_report(y_te, y_pred, target_names=["Risque faible (Non)", "Risque (Oui)"]))
+    print(json.dumps(metrics, indent=2, ensure_ascii=False))
 
-    # --- Entraînement du pipeline complet ---
-    # L'imputation, le scaler, l'encodeur, la PCA et SMOTE sont tous appris UNIQUEMENT
-    # sur X_train/y_train à l'intérieur du pipeline -> aucune fuite de données.
-    pipeline = build_pipeline()
-    pipeline.fit(X_train, y_train)
+    # Ré-entraînement final sur 100 % des données avec les hyperparamètres retenus
+    final = construire(C=gs.best_params_["modele__C"])
+    final.fit(X, y)
+    joblib.dump(final, "heart_model/model_pipeline.joblib")
 
-    # --- Évaluation sur le jeu de test, jamais vu pendant l'entraînement ---
-    y_pred = pipeline.predict(X_test)
-    y_proba = pipeline.predict_proba(X_test)[:, 1]
-
-    print("=== Évaluation sur le jeu de test ===")
-    print(f"Accuracy  : {accuracy_score(y_test, y_pred):.4f}")
-    print(f"Précision : {precision_score(y_test, y_pred):.4f}")
-    print(f"Rappel    : {recall_score(y_test, y_pred):.4f}")
-    print(f"F1-score  : {f1_score(y_test, y_pred):.4f}")
-    print(f"ROC-AUC   : {roc_auc_score(y_test, y_proba):.4f}")
-    print()
-    print(classification_report(y_test, y_pred, target_names=["Sain (0)", "Malade (1)"]))
-
-    # --- Ré-entraînement final sur 100% des données disponibles ---
-    # Une fois la performance validée sur le test ci-dessus, on ré-entraîne le pipeline
-    # sur l'ensemble du dataset pour maximiser les données utilisées par le modèle
-    # réellement déployé (pratique standard une fois le test de généralisation effectué).
-    pipeline_final = build_pipeline()
-    pipeline_final.fit(X, y)
-
-    # --- Extraction d'un pipeline d'INFÉRENCE sans SMOTE ---
-    # SMOTE ne sert qu'à sur-échantillonner pendant l'entraînement ; il est inactif à la
-    # prédiction. On le retire donc du pipeline sauvegardé pour servir un artefact plus
-    # léger, qui ne dépend plus de `imbalanced-learn` au moment de la prédiction
-    # (important pour respecter les limites de taille d'une fonction serverless Vercel).
-    etapes_inference = [(nom, etape) for nom, etape in pipeline_final.steps if nom != "smote"]
-    pipeline_inference = SkPipeline(steps=etapes_inference)
-
-    joblib.dump(pipeline_inference, CHEMIN_MODELE)
-    print(f"\nModèle final (inférence, sans SMOTE) sauvegardé -> {CHEMIN_MODELE}")
+    # Moyennes des variables transformées (référence pour expliquer chaque prédiction)
+    prepa = final.named_steps["preparation_transformation"]
+    Xt = prepa.transform(X)
+    # Plages observées à l'entraînement : sert à signaler les saisies où le modèle extrapole
+    cols = ["age", "ta_systolique", "ta_diastolique", "ldl", "glycemie", "poids", "taille",
+            "acide_urique", "freq_cardiaque"]
+    plages = {c: [float(X[c].min()), float(X[c].max())] for c in cols}
+    with open("heart_model/explication.json", "w") as f:
+        json.dump({"moyennes": Xt.mean(axis=0).tolist(), "plages": plages}, f)
+    with open("heart_model/metrics.json", "w", encoding="utf-8") as f:
+        json.dump(metrics, f, ensure_ascii=False, indent=2)
+    print("Artefacts sauvegardés dans heart_model/")
 
 
 if __name__ == "__main__":

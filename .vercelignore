@@ -2,9 +2,8 @@ __pycache__/
 *.pyc
 .git/
 *.ipynb
-heart_disease_cleveland_ML.csv
-Dockerfile
-docker-compose.yml
-.dockerignore
-README.md
+.ipynb_checkpoints/
+data/
+train_model.py
 requirements-train.txt
+README.md
